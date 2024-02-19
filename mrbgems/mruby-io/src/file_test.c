@@ -1,3 +1,4 @@
+#ifndef ESP_PLATFORM
 /*
 ** file_test.c - FileTest class
 */
@@ -350,3 +351,4 @@ mrb_init_file_test(mrb_state *mrb)
   mrb_define_class_method(mrb, f, "symlink?",   mrb_filetest_s_symlink_p,   MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, f, "zero?",      mrb_filetest_s_zero_p,      MRB_ARGS_REQ(1));
 }
+#endif /* ESP_PLATFORM */

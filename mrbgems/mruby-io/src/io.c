@@ -94,7 +94,7 @@ io_get_open_fptr(mrb_state *mrb, mrb_value io)
   return fptr;
 }
 
-#if !defined(MRB_NO_IO_POPEN) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#if (!defined(MRB_NO_IO_POPEN) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE) || defined(ESP_PLATFORM)
 # define MRB_NO_IO_POPEN 1
 #endif
 
@@ -262,7 +262,7 @@ io_fd_cloexec(mrb_state *mrb, int fd)
 #endif
 }
 
-#if !defined(_WIN32) && !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+#if !defined(_WIN32) && !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE) && !defined(ESP_PLATFORM)
 static int
 io_cloexec_pipe(mrb_state *mrb, int fildes[2])
 {
@@ -610,6 +610,7 @@ io_s_popen(mrb_state *mrb, mrb_value klass)
 #endif /* _WIN32 */
 #endif /* TARGET_OS_IPHONE */
 
+#ifndef ESP_PLATFORM
 static int
 symdup(mrb_state *mrb, int fd, mrb_bool *failed)
 {
@@ -668,6 +669,7 @@ io_init_copy(mrb_state *mrb, mrb_value copy)
 
   return copy;
 }
+#endif /* ESP_PLATFORM */
 
 static void
 check_file_descriptor(mrb_state *mrb, mrb_int fd)
@@ -1191,6 +1193,7 @@ io_pid(mrb_state *mrb, mrb_value io)
   return mrb_nil_value();
 }
 
+#ifndef ESP_PLATFORM
 static struct timeval
 time2timeval(mrb_state *mrb, mrb_value time)
 {
@@ -1245,6 +1248,7 @@ io_s_pipe(mrb_state *mrb, mrb_value klass)
   return mrb_assoc_new(mrb, r, w);
 }
 #endif
+#endif /* ESP_PLATFORM */
 
 static int
 mrb_io_read_data_pending(mrb_state *mrb, struct mrb_io *fptr)
@@ -1253,6 +1257,7 @@ mrb_io_read_data_pending(mrb_state *mrb, struct mrb_io *fptr)
   return 0;
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 io_s_select(mrb_state *mrb, mrb_value klass)
 {
@@ -1429,6 +1434,7 @@ retry:
 
   return result;
 }
+#endif /* ESP_PLATFORM */
 
 int
 mrb_io_fileno(mrb_state *mrb, mrb_value io)
@@ -1936,17 +1942,23 @@ mrb_init_io(mrb_state *mrb)
   MRB_SET_INSTANCE_TT(io, MRB_TT_CDATA);
 
   mrb_include_module(mrb, io, mrb_module_get(mrb, "Enumerable")); /* 15.2.20.3 */
+#ifndef ESP_PLATFORM
   mrb_define_class_method(mrb, io, "_popen",  io_s_popen,   MRB_ARGS_ARG(1,2));
+#endif
   mrb_define_class_method(mrb, io, "_sysclose",  io_s_sysclose, MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, io, "for_fd",  io_s_for_fd,   MRB_ARGS_ARG(1,2));
+#ifndef ESP_PLATFORM
   mrb_define_class_method(mrb, io, "select",  io_s_select,  MRB_ARGS_ARG(1,3));
+#endif
   mrb_define_class_method(mrb, io, "sysopen", io_s_sysopen, MRB_ARGS_ARG(1,2));
-#if !defined(_WIN32) && !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+#if !defined(_WIN32) && !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE) && !defined(ESP_PLATFORM)
   mrb_define_class_method(mrb, io, "_pipe", io_s_pipe, MRB_ARGS_NONE());
 #endif
 
   mrb_define_method(mrb, io, "initialize",      io_init, MRB_ARGS_ARG(1,2));
+#ifndef ESP_PLATFORM
   mrb_define_method(mrb, io, "initialize_copy", io_init_copy, MRB_ARGS_REQ(1));
+#endif
   mrb_define_method(mrb, io, "isatty",     io_isatty,     MRB_ARGS_NONE());
   mrb_define_method(mrb, io, "eof?",       io_eof,        MRB_ARGS_NONE());   /* 15.2.20.5.6 */
   mrb_define_method(mrb, io, "getc",       io_getc,       MRB_ARGS_NONE());   /* 15.2.20.5.8 */

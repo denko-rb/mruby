@@ -95,6 +95,7 @@ flock(int fd, int operation) {
 }
 #endif
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_s_umask(mrb_state *mrb, mrb_value klass)
 {
@@ -114,6 +115,7 @@ mrb_file_s_umask(mrb_state *mrb, mrb_value klass)
   return mrb_fixnum_value(omask);
 #endif
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_s_unlink(mrb_state *mrb, mrb_value obj)
@@ -163,6 +165,7 @@ mrb_file_s_rename(mrb_state *mrb, mrb_value obj)
   return mrb_fixnum_value(0);
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_dirname(mrb_state *mrb, mrb_value klass)
 {
@@ -203,6 +206,7 @@ mrb_file_dirname(mrb_state *mrb, mrb_value klass)
   return mrb_str_new_cstr(mrb, dname);
 #endif
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_basename(mrb_state *mrb, mrb_value klass)
@@ -340,6 +344,7 @@ mrb_file_is_absolute_path(const char *path)
 }
 #endif
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file__gethome(mrb_state *mrb, mrb_value klass)
 {
@@ -396,6 +401,7 @@ mrb_file__gethome(mrb_state *mrb, mrb_value klass)
   return path;
 #endif
 }
+#endif /* ESP_PLATFORM */
 
 #define TIME_OVERFLOW_P(a) (sizeof(time_t) >= sizeof(mrb_int) && ((a) > MRB_INT_MAX || (a) < MRB_INT_MIN))
 #define TIME_T_UINT (~(time_t)0 > 0)
@@ -454,6 +460,7 @@ mrb_file_mtime(mrb_state *mrb, mrb_value self)
   return mrb_int_value(mrb, (mrb_int)st.st_mtime);
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_flock(mrb_state *mrb, mrb_value self)
 {
@@ -487,6 +494,7 @@ mrb_file_flock(mrb_state *mrb, mrb_value self)
 #endif
   return mrb_fixnum_value(0);
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_size(mrb_state *mrb, mrb_value self)
@@ -556,6 +564,7 @@ mrb_file_truncate(mrb_state *mrb, mrb_value self)
   return mrb_fixnum_value(0);
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_s_symlink(mrb_state *mrb, mrb_value klass)
 {
@@ -580,6 +589,7 @@ mrb_file_s_symlink(mrb_state *mrb, mrb_value klass)
 #endif
   return mrb_fixnum_value(0);
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_s_chmod(mrb_state *mrb, mrb_value klass) {
@@ -647,21 +657,29 @@ mrb_init_file(mrb_state *mrb)
   io   = mrb_class_get_id(mrb, MRB_SYM(IO));
   file = mrb_define_class(mrb, "File", io);
   MRB_SET_INSTANCE_TT(file, MRB_TT_CDATA);
+#ifndef ESP_PLATFORM
   mrb_define_class_method(mrb, file, "umask",  mrb_file_s_umask, MRB_ARGS_OPT(1));
+#endif /* ESP_PLATFORM */
   mrb_define_class_method(mrb, file, "delete", mrb_file_s_unlink, MRB_ARGS_ANY());
   mrb_define_class_method(mrb, file, "unlink", mrb_file_s_unlink, MRB_ARGS_ANY());
   mrb_define_class_method(mrb, file, "rename", mrb_file_s_rename, MRB_ARGS_REQ(2));
+#ifndef ESP_PLATFORM
   mrb_define_class_method(mrb, file, "symlink", mrb_file_s_symlink, MRB_ARGS_REQ(2));
   mrb_define_class_method(mrb, file, "chmod", mrb_file_s_chmod, MRB_ARGS_REQ(1) | MRB_ARGS_REST());
   mrb_define_class_method(mrb, file, "readlink", mrb_file_s_readlink, MRB_ARGS_REQ(1));
 
   mrb_define_class_method(mrb, file, "dirname",   mrb_file_dirname,    MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, file, "basename",  mrb_file_basename,   MRB_ARGS_REQ(1));
+#endif /* ESP_PLATFORM */
   mrb_define_class_method(mrb, file, "realpath",  mrb_file_realpath,   MRB_ARGS_REQ(1)|MRB_ARGS_OPT(1));
   mrb_define_class_method(mrb, file, "_getwd",    mrb_file__getwd,     MRB_ARGS_NONE());
+#ifndef ESP_PLATFORM  
   mrb_define_class_method(mrb, file, "_gethome",  mrb_file__gethome,   MRB_ARGS_OPT(1));
+#endif /* ESP_PLATFORM */
 
+#ifndef ESP_PLATFORM
   mrb_define_method(mrb, file, "flock", mrb_file_flock, MRB_ARGS_REQ(1));
+#endif /* ESP_PLATFORM */
   mrb_define_method(mrb, file, "_atime", mrb_file_atime, MRB_ARGS_NONE());
   mrb_define_method(mrb, file, "_ctime", mrb_file_ctime, MRB_ARGS_NONE());
   mrb_define_method(mrb, file, "_mtime", mrb_file_mtime, MRB_ARGS_NONE());

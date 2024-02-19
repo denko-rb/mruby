@@ -5,10 +5,19 @@ class File < IO
     if fd_or_path.kind_of? Integer
       super(fd_or_path, mode)
     else
+      # Note whether in append mode on littlefs.
+      @little_fs_append = (mode[0] == "a") ? true : false
+
       @path = fd_or_path
       fd = IO.sysopen(@path, mode, perm)
       super(fd, mode)
     end
+  end
+  
+  # Seek to end of file in append mode for littlefs.
+  def write(string)
+    self.seek(0, SEEK_END) if @little_fs_append
+    super(string)
   end
 
   def atime
