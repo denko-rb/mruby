@@ -103,6 +103,7 @@ flock(int fd, int operation)
 }
 #endif
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_s_umask(mrb_state *mrb, mrb_value klass)
 {
@@ -122,6 +123,7 @@ mrb_file_s_umask(mrb_state *mrb, mrb_value klass)
   return mrb_fixnum_value(omask);
 #endif
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_s_unlink(mrb_state *mrb, mrb_value obj)
@@ -449,6 +451,7 @@ path_split(mrb_state *mrb, const char *path, const char *basedir, const char *wo
   return ary;
 }
 
+#ifndef ESP_PLATFORM
 static const char*
 path_gethome(mrb_state *mrb, const char **pathp)
 {
@@ -593,6 +596,7 @@ mrb_file_absolute_path(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "z|z", &path, &default_dir);
   return path_expand(mrb, path, default_dir, FALSE);
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_absolute_path_p(mrb_state *mrb, mrb_value klass)
@@ -659,6 +663,7 @@ mrb_file_mtime(mrb_state *mrb, mrb_value self)
   return mrb_int_value(mrb, (mrb_int)st.st_mtime);
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_flock(mrb_state *mrb, mrb_value self)
 {
@@ -691,6 +696,7 @@ mrb_file_flock(mrb_state *mrb, mrb_value self)
 #endif
   return mrb_fixnum_value(0);
 }
+#endif /* ESP_PLATFORM */
 
 static mrb_value
 mrb_file_size(mrb_state *mrb, mrb_value self)
@@ -753,6 +759,7 @@ mrb_file_truncate(mrb_state *mrb, mrb_value self)
   return mrb_fixnum_value(0);
 }
 
+#ifndef ESP_PLATFORM
 static mrb_value
 mrb_file_s_symlink(mrb_state *mrb, mrb_value klass)
 {
@@ -833,6 +840,7 @@ mrb_file_s_readlink(mrb_state *mrb, mrb_value klass)
   return ret;
 #endif
 }
+#endif /* ESP_PLATFORM */
 
 void
 mrb_init_file(mrb_state *mrb)
@@ -840,22 +848,30 @@ mrb_init_file(mrb_state *mrb)
   struct RClass *io   = mrb_class_get_id(mrb, MRB_SYM(IO));
   struct RClass *file = mrb_define_class_id(mrb, MRB_SYM(File), io);
   MRB_SET_INSTANCE_TT(file, MRB_TT_CDATA);
+  #ifndef ESP_PLATFORM
   mrb_define_class_method_id(mrb, file, MRB_SYM(umask),  mrb_file_s_umask, MRB_ARGS_OPT(1));
+  #endif /* ESP_PLATFORM */
   mrb_define_class_method_id(mrb, file, MRB_SYM(delete), mrb_file_s_unlink, MRB_ARGS_ANY());
   mrb_define_class_method_id(mrb, file, MRB_SYM(unlink), mrb_file_s_unlink, MRB_ARGS_ANY());
   mrb_define_class_method_id(mrb, file, MRB_SYM(rename), mrb_file_s_rename, MRB_ARGS_REQ(2));
+  #ifndef ESP_PLATFORM
   mrb_define_class_method_id(mrb, file, MRB_SYM(symlink), mrb_file_s_symlink, MRB_ARGS_REQ(2));
   mrb_define_class_method_id(mrb, file, MRB_SYM(chmod), mrb_file_s_chmod, MRB_ARGS_REQ(1) | MRB_ARGS_REST());
   mrb_define_class_method_id(mrb, file, MRB_SYM(readlink), mrb_file_s_readlink, MRB_ARGS_REQ(1));
+  #endif /* ESP_PLATFORM */
 
   mrb_define_class_method_id(mrb, file, MRB_SYM(dirname),   mrb_file_dirname,    MRB_ARGS_REQ(1));
   mrb_define_class_method_id(mrb, file, MRB_SYM(basename),  mrb_file_basename,   MRB_ARGS_REQ(1)|MRB_ARGS_OPT(1));
   mrb_define_class_method_id(mrb, file, MRB_SYM(realpath),  mrb_file_realpath,   MRB_ARGS_REQ(1)|MRB_ARGS_OPT(1));
+  #ifndef ESP_PLATFORM
   mrb_define_class_method_id(mrb, file, MRB_SYM(absolute_path), mrb_file_absolute_path, MRB_ARGS_REQ(1)|MRB_ARGS_OPT(1));
   mrb_define_class_method_id(mrb, file, MRB_SYM_Q(absolute_path), mrb_file_absolute_path_p, MRB_ARGS_REQ(1));
   mrb_define_class_method_id(mrb, file, MRB_SYM(expand_path),  mrb_file_expand_path, MRB_ARGS_REQ(1)|MRB_ARGS_OPT(1));
+  #endif /* ESP_PLATFORM */
 
+  #ifndef ESP_PLATFORM
   mrb_define_method_id(mrb, file, MRB_SYM(flock), mrb_file_flock, MRB_ARGS_REQ(1));
+  #endif /* ESP_PLATFORM */
   mrb_define_method_id(mrb, file, MRB_SYM(_atime), mrb_file_atime, MRB_ARGS_NONE());
   mrb_define_method_id(mrb, file, MRB_SYM(_ctime), mrb_file_ctime, MRB_ARGS_NONE());
   mrb_define_method_id(mrb, file, MRB_SYM(_mtime), mrb_file_mtime, MRB_ARGS_NONE());

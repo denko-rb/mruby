@@ -53,6 +53,79 @@
 
 #define E_SOCKET_ERROR             mrb_class_get_id(mrb, MRB_SYM(SocketError))
 
+#ifdef ESP_PLATFORM
+#include "esp_system.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "lwip/err.h"
+#include "lwip/sockets.h"
+#include "lwip/sys.h"
+#include <lwip/netdb.h>
+  
+#undef bool
+#define SOCKET_ERROR (-1)
+
+#define NI_NOFQDN       0x00000001
+#define NI_NUMERICHOST  0x00000002
+#define NI_NAMEREQD     0x00000004
+#define NI_NUMERICSERV  0x00000008
+#define NI_DGRAM        0x00000010
+#define NI_MAXHOST      1025
+#define NI_MAXSERV      32
+
+int
+gethostname(char *name, size_t len)
+{
+  const char *ptr;
+  esp_netif_get_hostname(esp_netif_get_default_netif(), &ptr);
+  strncpy(name, ptr, len);
+  return 0;
+}
+
+int
+getnameinfo(const struct sockaddr *sa, socklen_t salen, char *host, socklen_t hostlen, char *serv, socklen_t servlen, int flags)
+{
+  void *addr;
+  unsigned short port;
+
+  if (!(flags & NI_NUMERICHOST) || !(flags & NI_NUMERICSERV)) {
+    return EAI_NONAME;
+  }
+  switch (sa->sa_family) {
+  case AF_INET:
+    if (hostlen < INET_ADDRSTRLEN) {
+      return EAI_FAIL;
+    }
+    addr = &((struct sockaddr_in *)sa)->sin_addr;
+    port = ((struct sockaddr_in *)sa)->sin_port;
+    break;
+  case AF_INET6:
+    if (hostlen < INET6_ADDRSTRLEN) {
+      return EAI_FAIL;
+    }
+    addr = &((struct sockaddr_in6 *)sa)->sin6_addr;
+    port = ((struct sockaddr_in6 *)sa)->sin6_port;
+    break;
+  default:
+    return EAI_FAMILY;
+  }
+  if (servlen < 6)
+    return EAI_FAIL;
+  snprintf(serv, (size_t)servlen, "%u", ntohs(port));
+  if (!inet_ntop(sa->sa_family, addr, host, hostlen))
+    return EAI_FAIL;
+  return 0;
+}
+
+const char *
+gai_strerror(int errcode)
+{
+  static char buf[128];
+  sprintf(buf, "error (%d)", errcode);
+  return buf;
+}
+#endif /* ESP_PLATFORM */
+
 #ifdef _WIN32
 static const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 {
@@ -250,6 +323,14 @@ sa2addrlist(mrb_state *mrb, const struct sockaddr *sa, socklen_t salen)
   return ary;
 }
 
+#ifdef ESP_PLATFORM
+static int
+socket_fd(mrb_state *mrb, mrb_value sock)
+{
+  return mrb_fixnum(mrb_funcall(mrb, sock, "fileno", 0));
+}
+#else
+
 int mrb_io_fileno(mrb_state *mrb, mrb_value io);
 
 static int
@@ -257,6 +338,7 @@ socket_fd(mrb_state *mrb, mrb_value sock)
 {
   return mrb_io_fileno(mrb, sock);
 }
+#endif
 
 static int
 socket_family(int s)
@@ -643,6 +725,9 @@ mrb_basicsocket_shutdown(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_basicsocket_set_is_socket(mrb_state *mrb, mrb_value self)
 {
+#ifdef ESP_PLATFORM
+  return mrb_true_value();
+#else
   mrb_bool b;
   mrb_get_args(mrb, "b", &b);
 
@@ -652,6 +737,7 @@ mrb_basicsocket_set_is_socket(mrb_state *mrb, mrb_value self)
   }
 
   return mrb_bool_value(b);
+#endif
 }
 
 static mrb_value
@@ -860,8 +946,8 @@ mrb_socket_sockaddr_un(mrb_state *mrb, mrb_value klass)
 static mrb_value
 mrb_socket_socketpair(mrb_state *mrb, mrb_value klass)
 {
-#ifdef _WIN32
-  mrb_raise(mrb, E_NOTIMP_ERROR, "socketpair unsupported on Windows");
+#if defined(_WIN32) || defined(ESP_PLATFORM)
+  mrb_raise(mrb, E_NOTIMP_ERROR, "socketpair unsupported on this platform");
   return mrb_nil_value();
 #else
   mrb_int domain, type, protocol;
