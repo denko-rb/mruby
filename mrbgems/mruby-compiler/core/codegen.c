@@ -3139,6 +3139,7 @@ gen_literal_array(codegen_scope *s, node *tree, mrb_bool sym, int val)
         if ((tree->cdr == NULL) && (nint(tree->car->cdr->cdr) == 0))
           break;
         /* fall through */
+      case NODE_STMTS:
       case NODE_BEGIN:
         codegen(s, tree->car, VAL);
         j++;
@@ -3192,7 +3193,7 @@ gen_literal_array(codegen_scope *s, node *tree, mrb_bool sym, int val)
   else {
     while (tree) {
       switch (nint(tree->car->car)) {
-      case NODE_BEGIN: case NODE_BLOCK:
+      case NODE_STMTS: case NODE_BEGIN: case NODE_BLOCK:
         codegen(s, tree->car, NOVAL);
       }
       tree = tree->cdr;
@@ -3344,7 +3345,7 @@ codegen(codegen_scope *s, node *tree, int val)
   s->lineno = tree->lineno;
   tree = tree->cdr;
   switch (nt) {
-  case NODE_BEGIN:
+  case NODE_STMTS:
     if (val && !tree) {
       genop_1(s, OP_LOADNIL, cursp());
       push();
@@ -3353,6 +3354,11 @@ codegen(codegen_scope *s, node *tree, int val)
       codegen(s, tree->car, tree->cdr ? NOVAL : val);
       tree = tree->cdr;
     }
+    break;
+
+  case NODE_BEGIN:
+    /* NODE_BEGIN contains a single body node directly in cdr */
+    codegen(s, tree, val);
     break;
 
   case NODE_RESCUE:
@@ -3450,7 +3456,7 @@ codegen(codegen_scope *s, node *tree, int val)
 
   case NODE_ENSURE:
     if (!tree->cdr || !tree->cdr->cdr ||
-        (nint(tree->cdr->cdr->car) == NODE_BEGIN &&
+        (nint(tree->cdr->cdr->car) == NODE_STMTS &&
          tree->cdr->cdr->cdr)) {
       int catch_entry, begin, end, target;
       int idx;
@@ -3603,9 +3609,35 @@ codegen(codegen_scope *s, node *tree, int val)
     }
     break;
 
+  case NODE_WHILE_MOD:
+  case NODE_UNTIL_MOD:
+    /* Post-tested loops: execute body first, then check condition */
+    if (false_always(tree->car)) {
+      if (nt == NODE_WHILE_MOD) {
+        /* begin...end while false - execute once then exit */
+        codegen(s, tree->cdr, val);
+        if (val) push();
+        goto exit;
+      }
+    }
+    else if (true_always(tree->car)) {
+      if (nt == NODE_UNTIL_MOD) {
+        /* begin...end until true - execute once then exit */
+        codegen(s, tree->cdr, val);
+        if (val) push();
+        goto exit;
+      }
+    }
+    genjmp_0(s, OP_JMP);
+    /* fall through */
   case NODE_WHILE:
   case NODE_UNTIL:
     {
+      uint32_t pos0 = JMPLINK_START;
+      if (nt == NODE_WHILE_MOD || nt == NODE_UNTIL_MOD) {
+        pos0 = s->pc - mrb_insn_size[OP_JMP] + 1;
+      }
+
       if (true_always(tree->car)) {
         if (nt == NODE_UNTIL) {
           if (val) {
@@ -3625,21 +3657,23 @@ codegen(codegen_scope *s, node *tree, int val)
         }
       }
 
-      uint32_t pos = JMPLINK_START;
       struct loopinfo *lp = loop_push(s, LOOP_NORMAL);
 
       if (!val) lp->reg = -1;
       lp->pc0 = new_label(s);
       codegen(s, tree->car, VAL);
       pop();
-      if (nt == NODE_WHILE) {
+
+      uint32_t pos;
+      if (nt == NODE_WHILE || nt == NODE_WHILE_MOD) {
         pos = genjmp2_0(s, OP_JMPNOT, cursp(), NOVAL);
       }
-      else {
+      else { /* UNTIL */
         pos = genjmp2_0(s, OP_JMPIF, cursp(), NOVAL);
       }
       lp->pc1 = new_label(s);
       genop_0(s, OP_NOP); /* for redo */
+      dispatch(s, pos0);
       codegen(s, tree->cdr, NOVAL);
       genjmp(s, OP_JMP, lp->pc0);
       dispatch(s, pos);
@@ -4755,7 +4789,7 @@ codegen(codegen_scope *s, node *tree, int val)
       idx = new_sym(s, nsym(tree->car->cdr));
       genop_2(s, OP_CLASS, cursp(), idx);
       body = tree->cdr->cdr->car;
-      if (nint(body->cdr->car) == NODE_BEGIN && body->cdr->cdr == NULL) {
+      if (nint(body->cdr->car) == NODE_STMTS && body->cdr->cdr == NULL) {
         genop_1(s, OP_LOADNIL, cursp());
       }
       else {
@@ -4786,7 +4820,7 @@ codegen(codegen_scope *s, node *tree, int val)
       pop();
       idx = new_sym(s, nsym(tree->car->cdr));
       genop_2(s, OP_MODULE, cursp(), idx);
-      if (nint(tree->cdr->car->cdr->car) == NODE_BEGIN &&
+      if (nint(tree->cdr->car->cdr->car) == NODE_STMTS &&
           tree->cdr->car->cdr->cdr == NULL) {
         genop_1(s, OP_LOADNIL, cursp());
       }
@@ -4807,7 +4841,7 @@ codegen(codegen_scope *s, node *tree, int val)
       codegen(s, tree->car, VAL);
       pop();
       genop_1(s, OP_SCLASS, cursp());
-      if (nint(tree->cdr->car->cdr->car) == NODE_BEGIN &&
+      if (nint(tree->cdr->car->cdr->car) == NODE_STMTS &&
           tree->cdr->car->cdr->cdr == NULL) {
         genop_1(s, OP_LOADNIL, cursp());
       }

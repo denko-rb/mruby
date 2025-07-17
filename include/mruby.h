@@ -273,6 +273,8 @@ typedef struct mrb_state {
 
   mrb_gc gc;
 
+  mrb_bool bootstrapping;
+
 #ifndef MRB_NO_METHOD_CACHE
   struct mrb_cache_entry cache[MRB_METHOD_CACHE_SIZE];
 #endif
@@ -1247,6 +1249,7 @@ MRB_API mrb_state* mrb_open_core(void);
  *      Pointer to the mrb_state to be closed.
  */
 MRB_API void mrb_close(mrb_state *mrb);
+MRB_API void mrb_method_cache_clear(mrb_state *mrb);
 
 /**
  * The memory allocation function. You can redefine this function for your own allocator.
@@ -1302,6 +1305,18 @@ MRB_API mrb_value mrb_inspect(mrb_state *mrb, mrb_value obj);
 MRB_API mrb_bool mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
 /* mrb_cmp(mrb, obj1, obj2): 1:0:-1; -2 for error */
 MRB_API mrb_int mrb_cmp(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
+
+/* recursion detection */
+MRB_API mrb_bool mrb_recursive_method_p(mrb_state *mrb, mrb_sym mid, mrb_value obj1, mrb_value obj2);
+
+#define MRB_RECURSIVE_P(mrb, mid, obj1, obj2) \
+  mrb_recursive_method_p(mrb, mid, obj1, obj2)
+
+#define MRB_RECURSIVE_UNARY_P(mrb, mid, obj) \
+  mrb_recursive_method_p(mrb, mid, obj, mrb_nil_value())
+
+#define MRB_RECURSIVE_BINARY_P(mrb, mid, obj1, obj2) \
+  mrb_recursive_method_p(mrb, mid, obj1, obj2)
 
 #define mrb_gc_arena_save(mrb) ((mrb)->gc.arena_idx)
 #define mrb_gc_arena_restore(mrb, idx) ((mrb)->gc.arena_idx = (idx))

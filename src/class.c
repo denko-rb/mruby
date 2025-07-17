@@ -95,12 +95,39 @@ mt_new(mrb_state *mrb)
   return t;
 }
 
+/* Branch-free binary search helper: returns the index where `target` should be inserted/found. */
+static inline int
+bsearch_idx(mrb_sym *keys, int size, mrb_sym target)
+{
+  if (size == 0) return 0;
+  int n = size;
+  mrb_sym *p = keys;
+  /* While more than one element remains, halve the range each iteration */
+  while (n > 1) {
+    int half = n >> 1;
+    MRB_MEM_PREFETCH(p + (half >> 1));
+    MRB_MEM_PREFETCH(p + half + (half >> 1));
+    mrb_sym mid_sym = MT_KEY_SYM(p[half]);
+    /*
+     * Update pointer p without a branch:
+     * If mid_sym < target, move p forward by half; otherwise keep p unchanged.
+     * Compiler will emit a CMOV or equivalent.
+     */
+    p = (mid_sym < target) ? p + half : p;
+    n -= half;
+  }
+  /* Final adjustment: if the remaining element is still less than target, advance by one */
+  int offset = (MT_KEY_SYM(*p) < target);
+  return (int)(p - keys) + offset;
+}
+
+/* Insert or update an entry in the method table using branch-free binary search */
 static void
 mt_put(mrb_state *mrb, mt_tbl *t, mrb_sym sym, mrb_sym flags, union mt_ptr ptrval)
 {
   mrb_sym key = MT_KEY(sym, flags);
 
-  /* ensure capacity */
+  /* Ensure there is capacity */
   if (t->alloc == 0) {
     mt_grow(mrb, t, 8);
   }
@@ -111,77 +138,79 @@ mt_put(mrb_state *mrb, mt_tbl *t, mrb_sym sym, mrb_sym flags, union mt_ptr ptrva
   mrb_sym      *keys = mt_keys(t);
   union mt_ptr *vals = mt_vals(t);
 
-  /* binary search [0..size) for sym */
-  int lo = 0, hi = t->size;
-  while (lo < hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym mid_sym = MT_KEY_SYM(keys[mid]);
-    if (mid_sym < sym) lo = mid + 1;
-    else               hi = mid;
-  }
-  /* update if exists */
+  /*
+   * If table is empty, insertion index is 0.
+   * Otherwise, find the insertion/update position branch-free.
+   */
+  int lo = bsearch_idx(keys, t->size, sym);
+
+  /* If the key already exists, update its value and return */
   if (lo < t->size && MT_KEY_SYM(keys[lo]) == sym) {
-    keys[lo]    = key;
-    vals[lo]    = ptrval;
+    keys[lo] = key;
+    vals[lo] = ptrval;
     return;
   }
-  /* insert at lo: shift right */
+
+  /* Shift existing entries to make room at index lo */
   if (t->size > lo) {
-    int size = t->size - lo;
-    memmove(&vals[lo+1], &vals[lo], size * sizeof(union mt_ptr));
-    memmove(&keys[lo+1], &keys[lo], size * sizeof(mrb_sym));
+    int move_count = t->size - lo;
+    memmove(&vals[lo+1], &vals[lo], move_count * sizeof(union mt_ptr));
+    memmove(&keys[lo+1], &keys[lo], move_count * sizeof(mrb_sym));
   }
+
+  /* Insert the new key and value */
   keys[lo] = key;
   vals[lo] = ptrval;
   t->size++;
 }
 
-/* Get a value for a symbol from the method table. */
+/* Retrieve a value from the method table using branch-free binary search */
 static mrb_sym
 mt_get(mrb_state *mrb, mt_tbl *t, mrb_sym sym, union mt_ptr *pp)
 {
+  /* Return 0 if table is empty or null */
   if (!t || t->size == 0) return 0;
 
   mrb_sym      *keys = mt_keys(t);
   union mt_ptr *vals = mt_vals(t);
 
-  int lo = 0, hi = t->size;
-  while (lo < hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym mid_sym = MT_KEY_SYM(keys[mid]);
-    if (mid_sym < sym) lo = mid + 1;
-    else               hi = mid;
-  }
+  /* Find the position in a branch-free manner */
+  int lo = bsearch_idx(keys, t->size, sym);
+
+  /* If found, set *pp to the value and return the full key */
   if (lo < t->size && MT_KEY_SYM(keys[lo]) == sym) {
     *pp = vals[lo];
     return keys[lo];
   }
+
+  /* Not found */
   return 0;
 }
 
-/* Deletes the value for the symbol from the method table. */
+/* Deletes the entry for `sym` from the method table using branch-free search. */
 static mrb_bool
 mt_del(mrb_state *mrb, mt_tbl *t, mrb_sym sym)
 {
+  /* Return FALSE if table is null or empty */
   if (!t || t->size == 0) return FALSE;
 
   mrb_sym      *keys = mt_keys(t);
-  union mt_ptr *vals = t->ptr;
+  union mt_ptr *vals = mt_vals(t);
 
-  int lo = 0, hi = t->size;
-  while (lo < hi) {
-    int mid = (lo + hi) >> 1;
-    mrb_sym mid_sym = MT_KEY_SYM(keys[mid]);
-    if (mid_sym < sym) lo = mid + 1;
-    else               hi = mid;
-  }
+  /* Find the index of `sym` in a branch-free manner */
+  int lo = bsearch_idx(keys, t->size, sym);
+
+  /* If the key exists at index lo, remove it by shifting left */
   if (lo < t->size && MT_KEY_SYM(keys[lo]) == sym) {
+    int move_count = t->size - lo - 1;
     /* shift left to remove entry */
-    memmove(&vals[lo], &vals[lo+1], (t->size - lo - 1) * sizeof(union mt_ptr));
-    memmove(&keys[lo], &keys[lo+1], (t->size - lo - 1) * sizeof(mrb_sym));
+    memmove(&vals[lo],     &vals[lo + 1], move_count * sizeof(union mt_ptr));
+    memmove(&keys[lo],     &keys[lo + 1], move_count * sizeof(mrb_sym));
     t->size--;
     return TRUE;
   }
+
+  /* Key not found */
   return FALSE;
 }
 
@@ -571,7 +600,6 @@ mrb_define_class(mrb_state *mrb, const char *name, struct RClass *super)
 
 static mrb_value mrb_do_nothing(mrb_state *mrb, mrb_value);
 #ifndef MRB_NO_METHOD_CACHE
-static void mc_clear(mrb_state *mrb);
 static void mc_clear_by_id(mrb_state *mrb, mrb_sym mid);
 #else
 #define mc_clear(mrb)
@@ -923,8 +951,7 @@ find_visibility_scope(mrb_state *mrb, const struct RClass *c, int n, mrb_callinf
   if (c == NULL) c = mrb_vm_ci_target_class(ci);
 
   if (check_visibility_break(p, c, ci, NULL)) {
-    mrb_assert(ci->u.env);
-    *ep = (ci->u.env->tt == MRB_TT_ENV ? ci->u.env : NULL);
+    *ep = (ci->u.env && ci->u.env->tt == MRB_TT_ENV) ? ci->u.env : NULL;
     *cp = ci;
     return;
   }
@@ -1005,7 +1032,7 @@ mrb_define_method_raw(mrb_state *mrb, struct RClass *c, mrb_sym mid, mrb_method_
     MRB_SET_VISIBILITY_FLAGS(flags, (e ? MRB_ENV_VISIBILITY(e) : MRB_CI_VISIBILITY(ci)));
   }
   mt_put(mrb, h, mid, flags, ptr);
-  mc_clear_by_id(mrb, mid);
+  if (!mrb->bootstrapping) mc_clear_by_id(mrb, mid);
 }
 
 static void
@@ -1872,7 +1899,7 @@ include_module_at(mrb_state *mrb, struct RClass *c, struct RClass *ins_pos, stru
   skip:
     m = m->super;
   }
-  mc_clear(mrb);
+  if (!mrb->bootstrapping) mrb_method_cache_clear(mrb);
   return 0;
 }
 
@@ -2475,8 +2502,8 @@ mrb_define_module_function(mrb_state *mrb, struct RClass *c, const char *name, m
 
 #ifndef MRB_NO_METHOD_CACHE
 /* clear whole method cache table */
-static void
-mc_clear(mrb_state *mrb)
+MRB_API void
+mrb_method_cache_clear(mrb_state *mrb)
 {
   static const struct mrb_cache_entry ce_zero ={0};
 

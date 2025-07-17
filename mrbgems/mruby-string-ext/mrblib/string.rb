@@ -1,61 +1,6 @@
 class String
 
   ##
-  # call-seq:
-  #    string.clear    ->  string
-  #
-  # Makes string empty.
-  #
-  #    a = "abcde"
-  #    a.clear    #=> ""
-  #
-  def clear
-    self.replace("")
-  end
-
-
-  def partition(sep)
-    raise TypeError, "type mismatch: #{sep.class} given" unless sep.is_a? String
-    n = index(sep)
-    unless n.nil?
-      m = n + sep.size
-      [ slice(0, n), sep, slice(m, size - m) ]
-    else
-      [ self[0..-1], "", "" ]
-    end
-  end
-
-  def rpartition(sep)
-    raise TypeError, "type mismatch: #{sep.class} given" unless sep.is_a? String
-    n = rindex(sep)
-    unless n.nil?
-      m = n + sep.size
-      [ slice(0, n), sep, slice(m, size - m) ]
-    else
-      [ "", "", self ]
-    end
-  end
-
-
-
-  ##
-  #  call-seq:
-  #     str.insert(index, other_str)   -> str
-  #
-  #  Inserts <i>other_str</i> before the character at the given
-  #  <i>index</i>, modifying <i>str</i>. Negative indices count from the
-  #  end of the string, and insert <em>after</em> the given character.
-  #  The intent is insert <i>aString</i> so that it starts at the given
-  #  <i>index</i>.
-  #
-  #     "abcd".insert(0, 'X')    #=> "Xabcd"
-  #     "abcd".insert(3, 'X')    #=> "abcXd"
-  #     "abcd".insert(4, 'X')    #=> "abcdX"
-  #     "abcd".insert(-3, 'X')   #=> "abXcd"
-  #     "abcd".insert(-1, 'X')   #=> "abcdX"
-  #
-
-  ##
   # Call the given block for each character of
   # +self+.
   def each_char(&block)
@@ -102,24 +47,6 @@ class String
   alias each_codepoint codepoints
 
   ##
-  # call-seq:
-  #    str.prepend(other_str)  -> str
-  #
-  # Prepend---Prepend the given string to <i>str</i>.
-  #
-  #    a = "world"
-  #    a.prepend("hello ") #=> "hello world"
-  #    a                   #=> "hello world"
-  def prepend(*args)
-    len = args.size
-    while len > 0
-      len -= 1
-      self[0, 0] = args[len]
-    end
-    self
-  end
-
-  ##
   #  call-seq:
   #    string.lines                ->  array of string
   #    string.lines {|s| block}    ->  array of string
@@ -136,8 +63,10 @@ class String
       lines.each do |line|
         blk.call(line)
       end
+      self
+    else
+      lines
     end
-    lines
   end
 
   ##

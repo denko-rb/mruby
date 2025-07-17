@@ -102,28 +102,50 @@ mrb_cmp_m(mrb_state *mrb, mrb_value self)
   return mrb_nil_value();
 }
 
-static mrb_bool
-inspect_recursive_p(mrb_state *mrb, mrb_value obj, int n)
+MRB_API mrb_bool
+mrb_recursive_method_p(mrb_state *mrb, mrb_sym mid, mrb_value obj1, mrb_value obj2)
 {
-  for (mrb_callinfo *ci=&mrb->c->ci[-1-n]; ci>=mrb->c->cibase; ci--) {
-    if (ci->mid == MRB_SYM(inspect) &&
-        mrb_obj_eq(mrb, obj, ci->stack[0])) {
-      return TRUE;
+  for (mrb_callinfo *ci=&mrb->c->ci[-1]; ci>=mrb->c->cibase; ci--) {
+    if (ci->mid == mid && mrb_obj_eq(mrb, obj1, ci->stack[0])) {
+      /* For unary methods, only check first argument */
+      if (mrb_nil_p(obj2)) return TRUE;
+
+      /* For binary methods, check both arguments */
+      if (mrb_obj_eq(mrb, obj2, ci->stack[1])) return TRUE;
     }
   }
   return FALSE;
 }
 
-mrb_bool
-mrb_inspect_recursive_p(mrb_state *mrb, mrb_value obj)
-{
-  return inspect_recursive_p(mrb, obj, 0);
-}
+#define MRB_RECURSIVE_P(mrb, mid, obj1, obj2) \
+  mrb_recursive_method_p(mrb, mid, obj1, obj2)
+
+#define MRB_RECURSIVE_UNARY_P(mrb, mid, obj) \
+  mrb_recursive_method_p(mrb, mid, obj, mrb_nil_value())
+
+#define MRB_RECURSIVE_BINARY_P(mrb, mid, obj1, obj2) \
+  mrb_recursive_method_p(mrb, mid, obj1, obj2)
 
 static mrb_value
-mrb_obj_inspect_recursive_p(mrb_state *mrb, mrb_value obj)
+mrb_obj_method_recursive_p(mrb_state *mrb, mrb_value obj)
 {
-  return mrb_bool_value(inspect_recursive_p(mrb, obj, 1));
+  mrb_sym mid;
+  mrb_value arg2 = mrb_nil_value();
+  mrb_int argc;
+
+  argc = mrb_get_args(mrb, "n|o", &mid, &arg2);
+
+  /* Use frame-skipping version for Ruby method calls */
+  for (mrb_callinfo *ci=&mrb->c->ci[-2]; ci>=mrb->c->cibase; ci--) {
+    if (ci->mid == mid && mrb_obj_eq(mrb, obj, ci->stack[0])) {
+      /* For unary methods, only check first argument */
+      if (argc == 1 || mrb_nil_p(arg2)) return mrb_true_value();
+
+      /* For binary methods, check both arguments */
+      if (mrb_obj_eq(mrb, arg2, ci->stack[1])) return mrb_true_value();
+    }
+  }
+  return mrb_false_value();
 }
 
 /* 15.3.1.3.3  */
@@ -627,7 +649,7 @@ mrb_init_kernel(mrb_state *mrb)
   mrb_define_method_id(mrb, krn, MRB_SYM(__case_eqq),                 mrb_obj_ceqq,                    MRB_ARGS_REQ(1));    /* internal */
   mrb_define_method_id(mrb, krn, MRB_SYM(__to_int),                   mrb_ensure_int_type,             MRB_ARGS_NONE());    /* internal */
   mrb_define_private_method_id(mrb, krn, MRB_SYM_Q(respond_to_missing), mrb_false,                     MRB_ARGS_ARG(1,1));
-  mrb_define_method_id(mrb, krn, MRB_SYM_Q(__inspect_recursive),      mrb_obj_inspect_recursive_p,     MRB_ARGS_NONE());
+  mrb_define_method_id(mrb, krn, MRB_SYM_Q(__method_recursive),       mrb_obj_method_recursive_p,      MRB_ARGS_ARG(1,1));
 
   mrb_include_module(mrb, mrb->object_class, mrb->kernel_module);
 }

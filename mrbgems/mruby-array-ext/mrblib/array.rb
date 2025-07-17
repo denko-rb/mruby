@@ -16,24 +16,24 @@ class Array
   #    c.uniq! { |s| s.first } # => [["student", "sam"], ["teacher", "matz"]]
   #
   def uniq!(&block)
-    hash = {}
     if block
+      hash = {}
+      result = []
       self.each do |val|
         key = block.call(val)
-        hash[key] = val unless hash.key?(key)
+        unless hash.key?(key)
+          hash[key] = true
+          result << val
+        end
       end
-      result = hash.values
-    else
-      hash = {}
-      self.each do |val|
-        hash[val] = val
+
+      if result.size == self.size
+        nil
+      else
+        self.replace(result)
       end
-      result = hash.keys
-    end
-    if result.size == self.size
-      nil
     else
-      self.replace(result)
+      __uniq!
     end
   end
 
@@ -51,246 +51,12 @@ class Array
   #    b.uniq { |s| s.first } # => [["student", "sam"], ["teacher", "matz"]]
   #
   def uniq(&block)
-    ary = self[0..-1]
-    ary.uniq!(&block)
-    ary
-  end
-
-  ##
-  # call-seq:
-  #    ary - other_ary    -> new_ary
-  #
-  # Array Difference---Returns a new array that is a copy of
-  # the original array, removing any items that also appear in
-  # <i>other_ary</i>. (If you need set-like behavior, see the
-  # library class Set.)
-  #
-  #    [ 1, 1, 2, 2, 3, 3, 4, 5 ] - [ 1, 2, 4 ]  #=>  [ 3, 3, 5 ]
-  #
-  def -(elem)
-    raise TypeError, "can't convert #{elem.class} into Array" unless elem.class == Array
-
-    hash = {}
-    array = []
-    idx = 0
-    len = elem.size
-    while idx < len
-      hash[elem[idx]] = true
-      idx += 1
-    end
-    idx = 0
-    len = size
-    while idx < len
-      v = self[idx]
-      array << v unless hash[v]
-      idx += 1
-    end
-    array
-  end
-
-  ##
-  # call-seq:
-  #    ary.difference(other_ary1, other_ary2, ...)   -> new_ary
-  #
-  # Returns a new array that is a copy of the original array, removing all
-  # occurrences of any item that also appear in +other_ary+. The order is
-  # preserved from the original array.
-  #
-  def difference(*args)
-    ary = self
-    args.each do |x|
-      ary = ary - x
-    end
-    ary
-  end
-
-  ##
-  # call-seq:
-  #    ary | other_ary     -> new_ary
-  #
-  # Set Union---Returns a new array by joining this array with
-  # <i>other_ary</i>, removing duplicates.
-  #
-  #    [ "a", "b", "c" ] | [ "c", "d", "a" ]
-  #           #=> [ "a", "b", "c", "d" ]
-  #
-  def |(elem)
-    raise TypeError, "can't convert #{elem.class} into Array" unless elem.class == Array
-
-    ary = self + elem
-    ary.uniq! or ary
-  end
-
-  ##
-  # call-seq:
-  #    ary.union(other_ary,...)  -> new_ary
-  #
-  # Set Union---Returns a new array by joining this array with
-  # <i>other_ary</i>, removing duplicates.
-  #
-  #    ["a", "b", "c"].union(["c", "d", "a"], ["a", "c", "e"])
-  #           #=> ["a", "b", "c", "d", "e"]
-  #
-  def union(*args)
-    ary = self.dup
-    args.each do |x|
-      ary.concat(x)
-      ary.uniq!
-    end
-    ary
-  end
-
-  ##
-  # call-seq:
-  #    ary & other_ary      -> new_ary
-  #
-  # Set Intersection---Returns a new array
-  # containing elements common to the two arrays, with no duplicates.
-  #
-  #    [ 1, 1, 3, 5 ] & [ 1, 2, 3 ]   #=> [ 1, 3 ]
-  #
-  def &(elem)
-    raise TypeError, "cannot convert #{elem.class} into Array" unless elem.class == Array
-
-    hash = {}
-    array = []
-    idx = 0
-    len = elem.size
-    while idx < len
-      hash[elem[idx]] = true
-      idx += 1
-    end
-    idx = 0
-    len = size
-    while idx < len
-      v = self[idx]
-      if hash[v]
-        array << v
-        hash.delete v
-      end
-      idx += 1
-    end
-    array
-  end
-
-  ##
-  # call-seq:
-  #    ary.intersection(other_ary,...)  -> new_ary
-  #
-  # Set Intersection---Returns a new array containing elements common to
-  # this array and <i>other_ary</i>s, removing duplicates. The order is
-  # preserved from the original array.
-  #
-  #    [1, 2, 3].intersection([3, 4, 1], [1, 3, 5])  #=> [1, 3]
-  #
-  def intersection(*args)
-    ary = self
-    args.each do |x|
-      ary = ary & x
-    end
-    ary
-  end
-
-  ##
-  # call-seq:
-  #   ary.intersect?(other_ary)   -> true or false
-  #
-  # Returns +true+ if the array and +other_ary+ have at least one element in
-  # common, otherwise returns +false+.
-  #
-  #    a = [ 1, 2, 3 ]
-  #    b = [ 3, 4, 5 ]
-  #    c = [ 5, 6, 7 ]
-  #    a.intersect?(b)   #=> true
-  #    a.intersect?(c)   #=> false
-  def intersect?(ary)
-    raise TypeError, "cannot convert #{ary.class} into Array" unless ary.class == Array
-
-    hash = {}
-    if self.length > ary.length
-      shorter = ary
-      longer = self
+    if block
+      ary = self.dup
+      ary.uniq!(&block)
+      ary
     else
-      shorter = self
-      longer = ary
-    end
-    idx = 0
-    len = shorter.size
-    while idx < len
-      hash[shorter[idx]] = true
-      idx += 1
-    end
-    idx = 0
-    len = size
-    while idx < len
-      v = longer[idx]
-      if hash[v]
-        return true
-      end
-      idx += 1
-    end
-    false
-  end
-
-  ##
-  # call-seq:
-  #    ary.flatten -> new_ary
-  #    ary.flatten(level) -> new_ary
-  #
-  # Returns a new array that is a one-dimensional flattening of this
-  # array (recursively). That is, for every element that is an array,
-  # extract its elements into the new array. If the optional
-  # <i>level</i> argument determines the level of recursion to flatten.
-  #
-  #    s = [ 1, 2, 3 ]           #=> [1, 2, 3]
-  #    t = [ 4, 5, 6, [7, 8] ]   #=> [4, 5, 6, [7, 8]]
-  #    a = [ s, t, 9, 10 ]       #=> [[1, 2, 3], [4, 5, 6, [7, 8]], 9, 10]
-  #    a.flatten                 #=> [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-  #    a = [ 1, 2, [3, [4, 5] ] ]
-  #    a.flatten(1)              #=> [1, 2, 3, [4, 5]]
-  #
-  def flatten(depth=nil)
-    res = Array.new(self)
-    res.flatten! depth
-    res
-  end
-
-  ##
-  # call-seq:
-  #    ary.flatten!        -> ary or nil
-  #    ary.flatten!(level) -> array or nil
-  #
-  # Flattens +self+ in place.
-  # Returns <code>nil</code> if no modifications were made (i.e.,
-  # <i>ary</i> contains no subarrays.) If the optional <i>level</i>
-  # argument determines the level of recursion to flatten.
-  #
-  #    a = [ 1, 2, [3, [4, 5] ] ]
-  #    a.flatten!   #=> [1, 2, 3, 4, 5]
-  #    a.flatten!   #=> nil
-  #    a            #=> [1, 2, 3, 4, 5]
-  #    a = [ 1, 2, [3, [4, 5] ] ]
-  #    a.flatten!(1) #=> [1, 2, 3, [4, 5]]
-  #
-  def flatten!(depth=nil)
-    modified = false
-    ar = []
-    idx = 0
-    len = size
-    while idx < len
-      e = self[idx]
-      if e.is_a?(Array) && (depth.nil? || depth > 0)
-        ar += e.flatten(depth.nil? ? nil : depth - 1)
-        modified = true
-      else
-        ar << e
-      end
-      idx += 1
-    end
-    if modified
-      self.replace(ar)
-    else
-      nil
+      __uniq
     end
   end
 
@@ -333,18 +99,18 @@ class Array
   def fetch(n, ifnone=NONE, &block)
     #warn "block supersedes default value argument" if !n.nil? && ifnone != NONE && block
 
-    idx = n.__to_int
-    if idx < 0
-      idx += size
-    end
-    if idx < 0 || size <= idx
-      return block.call(n) if block
-      if NONE.equal?(ifnone)
-        raise IndexError, "index #{n} outside of array bounds: #{-size}...#{size}"
+    if block
+      # Block case: use shared index helper + Ruby block handling
+      normalized_index = __normalize_index(n)
+      if normalized_index
+        self[normalized_index]
+      else
+        block.call(n)
       end
-      return ifnone
+    else
+      # Fast C implementation for non-block cases
+      __fetch(n, ifnone, NONE)
     end
-    self[idx]
   end
 
   ##
@@ -385,65 +151,21 @@ class Array
       raise ArgumentError, "wrong number of arguments (given 0, expected 1..3)"
     end
 
-    beg = len = 0
-    if block
-      if arg0.nil? && arg1.nil? && arg2.nil?
-        # ary.fill { |index| block }                    -> ary
-        beg = 0
-        len = self.size
-      elsif !arg0.nil? && arg0.kind_of?(Range)
-        # ary.fill(range) { |index| block }             -> ary
-        beg = arg0.begin
-        beg += self.size if beg < 0
-        len = arg0.end
-        len += self.size if len < 0
-        len += 1 unless arg0.exclude_end?
-      elsif !arg0.nil?
-        # ary.fill(start [, length] ) { |index| block } -> ary
-        beg = arg0.__to_int
-        beg += self.size if beg < 0
-        if arg1.nil?
-          len = self.size
-        else
-          len = beg + arg1.__to_int
-        end
-      end
-    else
-      if !arg0.nil? && arg1.nil? && arg2.nil?
-        # ary.fill(obj)                                 -> ary
-        beg = 0
-        len = self.size
-      elsif !arg0.nil? && !arg1.nil? && arg1.kind_of?(Range)
-        # ary.fill(obj, range )                         -> ary
-        beg = arg1.begin
-        beg += self.size if beg < 0
-        len = arg1.end
-        len += self.size if len < 0
-        len += 1 unless arg1.exclude_end?
-      elsif !arg0.nil? && !arg1.nil?
-        # ary.fill(obj, start [, length])               -> ary
-        beg = arg1.__to_int
-        beg += self.size if beg < 0
-        if arg2.nil?
-          len = self.size
-        else
-          len = beg + arg2.__to_int
-        end
-      end
-    end
+    # Use shared C argument parser for all cases
+    start, length = __fill_parse_arg(arg0, arg1, arg2, &block)
 
-    i = beg
     if block
-      while i < len
+      # Block-based filling in Ruby
+      i = start
+      while i < start + length
         self[i] = block.call(i)
         i += 1
       end
     else
-      while i < len
-        self[i] = arg0
-        i += 1
-      end
+      # Use fast C implementation for value filling
+      __fill_exec(start, length, arg0)
     end
+
     self
   end
 
@@ -511,25 +233,7 @@ class Array
     self.replace(result)
   end
 
-  ##
-  #  call-seq:
-  #     ary.insert(index, obj...)  -> ary
-  #
-  #  Inserts the given values before the element with the given +index+.
-  #
-  #  Negative indices count backwards from the end of the array, where +-1+ is
-  #  the last element.
-  #
-  #     a = %w{ a b c d }
-  #     a.insert(2, 99)         #=> ["a", "b", 99, "c", "d"]
-  #     a.insert(-2, 1, 2, 3)   #=> ["a", "b", 99, "c", 1, 2, 3, "d"]
 
-  def insert(idx, *args)
-    idx = idx.__to_int
-    idx += self.size + 1 if idx < 0
-    self[idx, 0] = args
-    self
-  end
 
   ##
   #  call-seq:
@@ -890,8 +594,15 @@ class Array
   #   a.fetch_values(2, 5) {|i| "BIRD" }  #=> ["cow", "BIRD"]
   #
   def fetch_values(*idx, &block)
-    idx.map do |i|
-      self.fetch(i, &block)
+    if block
+      idx.map do |i|
+        self.fetch(i, &block)
+      end
+    else
+      # Fast path: use C implementation for non-block cases
+      idx.map do |i|
+        __fetch(i, NONE, NONE)
+      end
     end
   end
 

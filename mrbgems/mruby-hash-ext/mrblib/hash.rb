@@ -3,62 +3,6 @@ class Hash
   # ISO does not define Hash#each_pair, so each_pair is defined in gem.
   alias each_pair each
 
-  ##
-  # call-seq:
-  #     Hash[ key, value, ... ] -> new_hash
-  #     Hash[ [ [key, value], ... ] ] -> new_hash
-  #     Hash[ object ] -> new_hash
-  #
-  # Creates a new hash populated with the given objects.
-  #
-  # Similar to the literal `{ _key_ => _value_, ... }`. In the first
-  # form, keys and values occur in pairs, so there must be an even number of
-  # arguments.
-  #
-  # The second and third form take a single argument which is either an array
-  # of key-value pairs or an object convertible to a hash.
-  #
-  #     Hash["a", 100, "b", 200] #=> {"a"=>100, "b"=>200}
-  #     Hash[ [ ["a", 100], ["b", 200] ] ] #=> {"a"=>100, "b"=>200}
-  #     Hash["a" => 100, "b" => 200] #=> {"a"=>100, "b"=>200}
-  #
-
-  def self.[](*object)
-    length = object.length
-    if length == 1
-      o = object[0]
-      if Hash === o
-        h = self.new
-        o.each { |k, v| h[k] = v }
-        return h
-      elsif o.respond_to?(:to_a)
-        h = self.new
-        o.to_a.each do |i|
-          raise ArgumentError, "wrong element type #{i.class} (expected array)" unless i.respond_to?(:to_a)
-          k, v = nil
-          case i.size
-          when 2
-            k = i[0]
-            v = i[1]
-          when 1
-            k = i[0]
-          else
-            raise ArgumentError, "invalid number of elements (#{i.size} for 1..2)"
-          end
-          h[k] = v
-        end
-        return h
-      end
-    end
-    unless length % 2 == 0
-      raise ArgumentError, 'odd number of arguments for Hash'
-    end
-    h = self.new
-    0.step(length - 2, 2) do |i|
-      h[object[i]] = object[i + 1]
-    end
-    h
-  end
 
   ##
   # call-seq:
@@ -88,13 +32,9 @@ class Hash
       other = others[i]
       i += 1
       raise TypeError, "Hash required (#{other.class} given)" unless Hash === other
-      if block
-        other.each_key{|k|
-          self[k] = (self.has_key?(k))? block.call(k, self[k], other[k]): other[k]
-        }
-      else
-        other.each_key{|k| self[k] = other[k]}
-      end
+      other.each_key{|k|
+        self[k] = (self.has_key?(k))? block.call(k, self[k], other[k]): other[k]
+      }
     end
     self
   end
@@ -256,25 +196,6 @@ class Hash
     self
   end
 
-  ##
-  #  call-seq:
-  #     hsh.key(value)    -> key
-  #
-  #  Returns the key of an occurrence of a given value. If the value is
-  #  not found, returns <code>nil</code>.
-  #
-  #     h = { "a" => 100, "b" => 200, "c" => 300, "d" => 300 }
-  #     h.key(200)   #=> "b"
-  #     h.key(300)   #=> "c"
-  #     h.key(999)   #=> nil
-  #
-
-  def key(val)
-    self.each do |k, v|
-      return k if v == val
-    end
-    nil
-  end
 
   ##
   #  call-seq:
